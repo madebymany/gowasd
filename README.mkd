@@ -1,0 +1,7 @@
+# gowasd
+
+Go Wide-Area Service Discovery
+
+An implementation of the client side of [RFC 6763](https://tools.ietf.org/html/rfc6763), for unicast DNS setups. It's intended this will be used with AWS Route 53, but isn't limited to that.
+
+Includes tests you can run with `go test`; you'll need to have [dnsmasq](http://www.thekelleys.org.uk/dnsmasq/doc.html) installed and in your `PATH` too. On a Mac with Homebrew, that's as easy as `brew install dnsmasq`.
