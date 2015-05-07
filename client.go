@@ -111,35 +111,41 @@ func (self *Client) ServiceInstances(srv Service) (out []Instance, err error) {
 }
 
 func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err error) {
-	msg := new(dns.Msg)
-	n := inst.DnsName()
-	msg.SetQuestion(n, dns.TypeSRV)
-	msg.Question = append(msg.Question, dns.Question{
-		Name:   n,
-		Qtype:  dns.TypeTXT,
-		Qclass: dns.ClassINET,
-	})
 
-	resp, _, err := self.c.Exchange(msg, self.Addr)
-	if err != nil {
-		return
+	responses := make(chan *dns.Msg)
+
+	name := inst.DnsName()
+	record_types := [...]uint16{dns.TypeSRV, dns.TypeTXT}
+	for _, record_type := range record_types {
+		go func(t uint16, n string) {
+			msg := new(dns.Msg)
+			msg.SetQuestion(n, t)
+			resp, _, err := self.c.Exchange(msg, self.Addr)
+			if err != nil {
+				return
+			}
+			responses <- resp
+		}(record_type, name)
 	}
 
 	out.Instance = inst
 	out.Targets = make(EndpointList, 0, 3) // 3 is a fair guess!
 	out.Properties = make(VersionedProperties)
 
-	for _, anyRR := range resp.Answer {
-		switch rr := anyRR.(type) {
-		case *dns.SRV:
-			// TODO: weight
-			out.Targets = append(out.Targets, Endpoint{
-				Host:     rr.Target,
-				Port:     int(rr.Port),
-				priority: int(rr.Priority),
-			})
-		case *dns.TXT:
-			parseTxtRecordForProperties(rr, &out)
+	for i := 0; i < len(record_types); i = i + 1 {
+		r := <-responses
+		for _, anyRR := range r.Answer {
+			switch rr := anyRR.(type) {
+			case *dns.SRV:
+				// TODO: weight
+				out.Targets = append(out.Targets, Endpoint{
+					Host:     rr.Target,
+					Port:     int(rr.Port),
+					priority: int(rr.Priority),
+				})
+			case *dns.TXT:
+				parseTxtRecordForProperties(rr, &out)
+			}
 		}
 	}
 
