@@ -70,9 +70,23 @@ func TestDumpDnsName(t *testing.T) {
 		"1\\.\\ this\\ is\\ awesome._test._tcp.example.com.")
 }
 
+func TestAddrFromResolvConf(t *testing.T) {
+	addr, err := addrFromResolvConf("test_resolv.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := "127.1.2.3:53"
+	if addr != expected {
+		t.Fatalf("expected %#v, got %#v", expected, addr)
+	}
+}
+
 func TestClient_ServiceInstances(t *testing.T) {
 	dnsmasq := startTestDnsServer()
-	c := New(new(dns.Client), testDnsAddr)
+	c, err := New(new(dns.Client), testDnsAddr)
+	if err != nil {
+		panic(err)
+	}
 
 	insts, err := c.ServiceInstances(Service{
 		Name:     "test",
@@ -104,7 +118,10 @@ func TestClient_ServiceInstances(t *testing.T) {
 
 func TestClient_ResolveInstance(t *testing.T) {
 	dnsmasq := startTestDnsServer()
-	c := New(new(dns.Client), testDnsAddr)
+	c, err := New(new(dns.Client), testDnsAddr)
+	if err != nil {
+		panic(err)
+	}
 
 	inst := Instance{
 		Service:     Service{Name: "test", Protocol: "tcp", Domain: "example.com"},

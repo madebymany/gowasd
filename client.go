@@ -1,6 +1,7 @@
 package gowasd
 
 import (
+	"errors"
 	"github.com/miekg/dns"
 	"sort"
 	"strconv"
@@ -16,8 +17,14 @@ type Client struct {
 	Addr string
 }
 
-func New(c *dns.Client, addr string) Client {
-	return Client{c: c, Addr: addr}
+func New(c *dns.Client, addr string) (out Client, err error) {
+	if addr == "" {
+		addr, err = addrFromResolvConf("/etc/resolv.conf")
+		if err != nil {
+			return out, err
+		}
+	}
+	return Client{c: c, Addr: addr}, nil
 }
 
 type Service struct {
@@ -209,4 +216,15 @@ func dumpDnsName(n []string) (out string) {
 		out += l + "."
 	}
 	return
+}
+
+func addrFromResolvConf(fn string) (out string, err error) {
+	clientConfig, err := dns.ClientConfigFromFile(fn)
+	if err != nil {
+		return
+	}
+	if len(clientConfig.Servers) == 0 {
+		return out, errors.New("no DNS servers found in " + fn)
+	}
+	return clientConfig.Servers[0] + ":" + clientConfig.Port, nil
 }
