@@ -49,7 +49,9 @@ func main() {
 		if err != nil {
 			log.Fatal("gowasd error: ", err)
 		}
+		log.Println(i)
 		log.Println(ri.Properties[1])
+		log.Println(ri.Targets)
 		log.Println(fmt.Printf("%#v", ri.Properties))
 	}
 }

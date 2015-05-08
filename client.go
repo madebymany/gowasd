@@ -132,7 +132,7 @@ func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err 
 	out.Targets = make(EndpointList, 0, 3) // 3 is a fair guess!
 	out.Properties = make(VersionedProperties)
 
-	for i := 0; i < len(record_types); i = i + 1 {
+	for i := 0; i < len(record_types); i++ {
 		r := <-responses
 		for _, anyRR := range r.Answer {
 			switch rr := anyRR.(type) {
