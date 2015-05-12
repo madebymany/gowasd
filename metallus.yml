@@ -1,0 +1,18 @@
+packages:
+  branch_codenames:
+    master: unstable
+    production: stable
+
+jobs:
+  wasd:
+    builder: "golang"
+    base: "quay.io/madebymany/build-bases:trusty"
+    start_in: "wasd"
+    packages:
+      - type: debian
+        name: wasd
+        target: install
+        repos:
+          - mxm-public
+        activates:
+          - wasd-upgrade
