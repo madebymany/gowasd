@@ -9,6 +9,9 @@ jobs:
     base: "quay.io/madebymany/build-bases:trusty"
     environment:
       GO_PACKAGE_DIR: wasd
+      branches:
+        master:
+          TEST: test
     packages:
       - type: debian
         name: wasd
