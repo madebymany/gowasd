@@ -7,7 +7,8 @@ jobs:
   wasd:
     builder: "golang"
     base: "quay.io/madebymany/build-bases:trusty"
-    start_in: "wasd"
+    environment:
+      GO_PACKAGE_DIR: wasd
     packages:
       - type: debian
         name: wasd

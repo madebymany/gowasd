@@ -130,8 +130,8 @@ func setVersions(instances []gowasd.InstanceResolution) {
 }
 
 func printVersions() {
-	for i := range availableVersions {
-		Info.Println(i)
+	for _, c := range availableVersions {
+		Info.Println(c)
 	}
 }
 
