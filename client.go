@@ -119,7 +119,6 @@ func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err 
 
 	responses := make(chan *dns.Msg)
 
-	name := inst.DnsName()
 	record_types := [...]uint16{dns.TypeSRV, dns.TypeTXT}
 	for _, record_type := range record_types {
 		go func(t uint16, n string) {
@@ -130,7 +129,7 @@ func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err 
 				return
 			}
 			responses <- resp
-		}(record_type, name)
+		}(record_type, inst.FullName)
 	}
 
 	out.Instance = inst
