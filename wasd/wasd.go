@@ -18,6 +18,8 @@ var (
 		"The protocol of the service, either udp or tcp")
 	version = flag.Int("version", 1,
 		"The version of the properties you want to load")
+	subtype = flag.String("subtype", "",
+		"The subtype record type to retrieve")
 	domain = flag.String("domain", "",
 		"The top level domain you wish to query the service against")
 	args              []string
@@ -42,7 +44,9 @@ func main() {
 		Fatal.Print("gowasd error: ", err)
 		os.Exit(1)
 	}
+
 	s := gowasd.Service{
+		Subtype:  *subtype,
 		Name:     *name,
 		Protocol: *protocol,
 		Domain:   *domain,

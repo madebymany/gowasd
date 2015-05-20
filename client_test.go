@@ -48,6 +48,8 @@ func TestParseDnsName(t *testing.T) {
 		[]string{"Woop hello there", "_test", "_tcp", "example.com"})
 	tryExample("Woop\\ hello\\ there._test._tcp.example.com.", 4,
 		[]string{"Woop hello there", "_test", "_tcp", "example.com"})
+	tryExample("Woop\\ hello\\ there._blah._sub._test._tcp.example.com.", 6,
+		[]string{"Woop hello there", "_blah", "_sub", "_test", "_tcp", "example.com"})
 }
 
 func TestDumpDnsName(t *testing.T) {
@@ -88,30 +90,50 @@ func TestClient_ServiceInstances(t *testing.T) {
 		panic(err)
 	}
 
-	insts, err := c.ServiceInstances(Service{
+	tryExample := func(srv Service, expected []Instance) {
+		insts, err := c.ServiceInstances(srv)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(insts, expected) {
+			t.Errorf("expected %#v, got %#v", expected, insts)
+		}
+	}
+
+	tryExample(Service{
 		Name:     "test",
 		Protocol: "tcp",
 		Domain:   "example.com",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	}, []Instance{
+		Instance{
+			Service:     Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
+			Description: "Woop",
+			FullName:    "Woop._test._tcp.example.com."},
+		Instance{
+			Service:     Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
+			Description: "Hello There",
+			FullName:    "Hello\\ There._test._tcp.example.com.",
+		}},
+	)
 
-	expected :=
-		[]Instance{
-			Instance{
-				Service:     Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
-				Description: "Woop",
-				FullName:    "Woop._test._tcp.example.com."},
-			Instance{
-				Service:     Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
-				Description: "Hello There",
-				FullName:    "Hello\\ There._test._tcp.example.com.",
-			}}
-
-	if !reflect.DeepEqual(insts, expected) {
-		t.Errorf("expected %#v, got %#v", expected, insts)
-	}
+	tryExample(Service{
+		Subtype:  "cheese",
+		Name:     "test",
+		Protocol: "tcp",
+		Domain:   "example.com",
+	}, []Instance{
+		Instance{
+			Service: Service{
+				Subtype:  "cheese",
+				Name:     "test",
+				Protocol: "tcp",
+				Domain:   "example.com",
+			},
+			Description: "Woop",
+			FullName:    "Woop._test._tcp.example.com."},
+	},
+	)
 
 	stopTestDnsServer(dnsmasq)
 }

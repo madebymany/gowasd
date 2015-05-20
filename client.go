@@ -28,6 +28,7 @@ func New(c *dns.Client, addr string) (out Client, err error) {
 }
 
 type Service struct {
+	Subtype  string
 	Name     string
 	Protocol string
 	Domain   string
@@ -37,8 +38,16 @@ func (srv Service) DnsName() string {
 	return dumpDnsName(srv.DnsLabels())
 }
 
-func (srv Service) DnsLabels() []string {
-	return []string{"_" + srv.Name, "_" + srv.Protocol, srv.Domain}
+func (srv Service) HasSubtype() bool {
+	return srv.Subtype != ""
+}
+
+func (srv Service) DnsLabels() (out []string) {
+	out = []string{"_" + srv.Name, "_" + srv.Protocol, srv.Domain}
+	if srv.HasSubtype() {
+		out = append([]string{"_" + srv.Subtype, "_sub"}, out...)
+	}
+	return
 }
 
 type Instance struct {
@@ -94,15 +103,11 @@ func (self *Client) ServiceInstances(srv Service) (out []Instance, err error) {
 	out = make([]Instance, len(resp.Answer))
 	for i, ans := range resp.Answer {
 		if ansPtr, ok := ans.(*dns.PTR); ok {
-			parts = parseDnsName(ansPtr.Ptr, 4)
+			parts = parseDnsName(ansPtr.Ptr, 2)
 			out[i] = Instance{
 				Description: parts[0],
 				FullName:    ansPtr.Ptr,
-				Service: Service{
-					Name:     parts[1][1:],
-					Protocol: parts[2][1:],
-					Domain:   parts[3],
-				},
+				Service:     srv,
 			}
 		}
 	}
@@ -114,7 +119,6 @@ func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err 
 
 	responses := make(chan *dns.Msg)
 
-	name := inst.DnsName()
 	record_types := [...]uint16{dns.TypeSRV, dns.TypeTXT}
 	for _, record_type := range record_types {
 		go func(t uint16, n string) {
@@ -125,7 +129,7 @@ func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err 
 				return
 			}
 			responses <- resp
-		}(record_type, name)
+		}(record_type, inst.FullName)
 	}
 
 	out.Instance = inst
@@ -200,7 +204,9 @@ func parseDnsName(s string, n int) (out []string) {
 			label = ""
 			escaped = false
 			if n > 0 && len(out) == n-1 {
-				out = append(out, s[i+1:len(s)-1])
+				if i < len(s)-1 {
+					out = append(out, s[i+1:len(s)-1])
+				}
 				break
 			}
 		} else {
