@@ -2,6 +2,7 @@ package gowasd
 
 import (
 	"errors"
+	"fmt"
 	"github.com/miekg/dns"
 	"sort"
 	"strconv"
@@ -68,6 +69,10 @@ type Endpoint struct {
 	Host     string
 	Port     int
 	priority int
+}
+
+func (self Endpoint) Addr() string {
+	return fmt.Sprintf("%s:%d", self.Host, self.Port)
 }
 
 type EndpointList []Endpoint
