@@ -107,13 +107,13 @@ func TestClient_ServiceInstances(t *testing.T) {
 		Domain:   "example.com",
 	}, []Instance{
 		Instance{
-			Service:     Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
-			Description: "Woop",
-			FullName:    "Woop._test._tcp.example.com."},
+			Service:      Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
+			Description:  "Woop",
+			returnedName: "Woop._test._tcp.example.com."},
 		Instance{
-			Service:     Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
-			Description: "Hello There",
-			FullName:    "Hello\\ There._test._tcp.example.com.",
+			Service:      Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
+			Description:  "Hello There",
+			returnedName: "Hello\\ There._test._tcp.example.com.",
 		}},
 	)
 
@@ -130,8 +130,8 @@ func TestClient_ServiceInstances(t *testing.T) {
 				Protocol: "tcp",
 				Domain:   "example.com",
 			},
-			Description: "Woop",
-			FullName:    "Woop._test._tcp.example.com."},
+			Description:  "Woop",
+			returnedName: "Woop._test._tcp.example.com."},
 	},
 	)
 
@@ -146,9 +146,9 @@ func TestClient_ResolveInstance(t *testing.T) {
 	}
 
 	inst := Instance{
-		Service:     Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
-		Description: "Woop",
-		FullName:    "Woop._test._tcp.example.com.",
+		Service:      Service{Name: "test", Protocol: "tcp", Domain: "example.com"},
+		Description:  "Woop",
+		returnedName: "Woop._test._tcp.example.com.",
 	}
 
 	resInst, err := c.ResolveInstance(inst)
@@ -162,8 +162,8 @@ func TestClient_ResolveInstance(t *testing.T) {
 				Name:     "test",
 				Protocol: "tcp",
 				Domain:   "example.com"},
-			Description: "Woop",
-			FullName:    "Woop._test._tcp.example.com.",
+			Description:  "Woop",
+			returnedName: "Woop._test._tcp.example.com.",
 		},
 		Targets: EndpointList{
 			Endpoint{

@@ -53,12 +53,16 @@ func (srv Service) DnsLabels() (out []string) {
 
 type Instance struct {
 	Service
-	Description string
-	FullName    string
+	Description  string
+	returnedName string
 }
 
 func (inst Instance) DnsName() string {
-	return dumpDnsName(inst.DnsLabels())
+	if inst.returnedName == "" {
+		return dumpDnsName(inst.DnsLabels())
+	} else {
+		return inst.returnedName
+	}
 }
 
 func (inst Instance) DnsLabels() []string {
@@ -110,9 +114,9 @@ func (self *Client) ServiceInstances(srv Service) (out []Instance, err error) {
 		if ansPtr, ok := ans.(*dns.PTR); ok {
 			parts = parseDnsName(ansPtr.Ptr, 2)
 			out[i] = Instance{
-				Description: parts[0],
-				FullName:    ansPtr.Ptr,
-				Service:     srv,
+				Description:  parts[0],
+				returnedName: ansPtr.Ptr,
+				Service:      srv,
 			}
 		}
 	}
@@ -134,7 +138,7 @@ func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err 
 				return
 			}
 			responses <- resp
-		}(record_type, inst.FullName)
+		}(record_type, inst.DnsName())
 	}
 
 	out.Instance = inst
