@@ -22,10 +22,8 @@ var (
 		"The subtype record type to retrieve")
 	domain = flag.String("domain", "",
 		"The top level domain you wish to query the service against")
-	args              []string
-	argNum            int = 0
-	commands          []string
-	availableVersions []int
+	format = flag.String("format", "default",
+		"Output format. Can be 'default' or 'env' (for eval-able environment variables)")
 
 	// setup log levels
 	Info  *log.Logger
@@ -37,7 +35,7 @@ func main() {
 	Fatal = log.New(os.Stderr, "Error: ", 0)
 
 	flag.Parse()
-	args = flag.Args()
+	args := flag.Args()
 
 	sd, err := gowasd.New(new(dns.Client), "")
 	if err != nil {
@@ -91,9 +89,15 @@ func runCommand(sd gowasd.Client, commands []string, instances []gowasd.Instance
 		for _, i := range instances {
 			ri = append(ri, getResolvedInstance(sd, i))
 		}
-		setVersions(ri)
 
-		if !versionExists(*version) {
+		availableVersions := make([]int, 0)
+		for _, i := range ri {
+			for count, _ := range i.Properties {
+				availableVersions = append(availableVersions, count)
+			}
+		}
+
+		if !versionExists(*version, availableVersions) {
 			Fatal.Print("version doesn't exist")
 			os.Exit(1)
 		}
@@ -101,7 +105,7 @@ func runCommand(sd gowasd.Client, commands []string, instances []gowasd.Instance
 		if subCommand {
 			switch commands[1] {
 			case "versions":
-				printVersions()
+				printVersions(availableVersions)
 			case "targets":
 				printTargets(ri)
 			case "properties":
@@ -114,7 +118,7 @@ func runCommand(sd gowasd.Client, commands []string, instances []gowasd.Instance
 
 }
 
-func versionExists(version int) (exists bool) {
+func versionExists(version int, availableVersions []int) (exists bool) {
 	exists = false
 	for _, v := range availableVersions {
 		if v == version {
@@ -125,15 +129,7 @@ func versionExists(version int) (exists bool) {
 	return
 }
 
-func setVersions(instances []gowasd.InstanceResolution) {
-	for _, i := range instances {
-		for count, _ := range i.Properties {
-			availableVersions = append(availableVersions, count)
-		}
-	}
-}
-
-func printVersions() {
+func printVersions(availableVersions []int) {
 	for _, c := range availableVersions {
 		Info.Println(c)
 	}
@@ -182,16 +178,6 @@ func printResolvedInstance(instances []gowasd.InstanceResolution) {
 		}
 	}
 
-	return
-}
-
-func getNextArg(errMsg string) (val string) {
-	if len(args) >= (argNum + 1) {
-		val = args[argNum]
-		argNum += 1
-	} else if errMsg != "" {
-		Fatal.Print(errMsg)
-	}
 	return
 }
 
