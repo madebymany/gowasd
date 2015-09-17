@@ -109,15 +109,15 @@ func (self *Client) ServiceInstances(srv Service) (out []Instance, err error) {
 	}
 
 	var parts []string
-	out = make([]Instance, len(resp.Answer))
-	for i, ans := range resp.Answer {
+	out = make([]Instance, 0, len(resp.Answer))
+	for _, ans := range resp.Answer {
 		if ansPtr, ok := ans.(*dns.PTR); ok {
 			parts = parseDnsName(ansPtr.Ptr, 2)
-			out[i] = Instance{
+			out = append(out, Instance{
 				Description:  parts[0],
 				returnedName: ansPtr.Ptr,
 				Service:      srv,
-			}
+			})
 		}
 	}
 
