@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"github.com/madebymany/gowasd"
 	"github.com/miekg/dns"
@@ -119,6 +120,8 @@ func getFormatter() (out formatter, err error) {
 		out = terminalFormatter{output: Info}
 	case "postgres_env":
 		out = postgresEnvVarFormatter{output: Info}
+	default:
+		err = errors.New("invalid format given")
 	}
 	return
 }
