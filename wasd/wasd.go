@@ -1,31 +1,31 @@
 package main
 
 import (
-	"bytes"
+	"errors"
 	"flag"
-	"fmt"
 	"github.com/madebymany/gowasd"
 	"github.com/miekg/dns"
 	"log"
 	"os"
-	"strconv"
 )
 
 var (
+	description = flag.String("description", "",
+		"Description of the service instance you want to query")
+	subtype = flag.String("subtype", "",
+		"The subtype record type to retrieve")
 	name = flag.String("name", "",
 		"The name of the service you wish to query")
 	protocol = flag.String("protocol", "tcp",
 		"The protocol of the service, either udp or tcp")
-	version = flag.Int("version", 1,
-		"The version of the properties you want to load")
-	subtype = flag.String("subtype", "",
-		"The subtype record type to retrieve")
 	domain = flag.String("domain", "",
 		"The top level domain you wish to query the service against")
-	args              []string
-	argNum            int = 0
-	commands          []string
-	availableVersions []int
+	version = flag.Int("version", 1,
+		"The version of the properties you want to load")
+	format = flag.String("format", "default",
+		"Output format. Can be 'default' or 'env' (for eval-able environment variables)")
+	serverAddr = flag.String("server", "",
+		"Address of the server, in ip:port format.")
 
 	// setup log levels
 	Info  *log.Logger
@@ -37,33 +37,93 @@ func main() {
 	Fatal = log.New(os.Stderr, "Error: ", 0)
 
 	flag.Parse()
-	args = flag.Args()
+	args := flag.Args()
 
-	sd, err := gowasd.New(new(dns.Client), "")
+	fmtr, err := getFormatter()
+	if err != nil {
+		Fatal.Print(err)
+		os.Exit(1)
+	}
+
+	sd, err := gowasd.New(new(dns.Client), *serverAddr)
 	if err != nil {
 		Fatal.Print("gowasd error: ", err)
 		os.Exit(1)
 	}
 
-	s := gowasd.Service{
+	service := gowasd.Service{
 		Subtype:  *subtype,
 		Name:     *name,
 		Protocol: *protocol,
 		Domain:   *domain,
 	}
 
-	instances, err := sd.ServiceInstances(s)
-	if err != nil {
-		Fatal.Print("wasd error: ", err)
+	var serviceInstance gowasd.Instance
+	if *description != "" {
+		serviceInstance.Description = *description
+		serviceInstance.Service = service
+	}
+
+	if len(args) == 0 {
+		Fatal.Print("no command specified")
 		os.Exit(1)
 	}
 
-	if len(instances) > 0 {
-		runCommand(sd, args, instances)
-	} else {
-		Fatal.Print("no instances found")
+	switch args[0] {
+	case "list":
+		if !fmtr.canOutputList() {
+			Fatal.Printf("can't output list in %s output format", *format)
+			os.Exit(1)
+		}
+
+		instances, err := sd.ServiceInstances(service)
+		if err != nil {
+			Fatal.Print("wasd error: ", err)
+			os.Exit(1)
+		}
+
+		if len(instances) == 0 {
+			Fatal.Print("no instances found")
+			os.Exit(1)
+		}
+
+		var ri = make([]gowasd.InstanceResolution, 0, len(instances))
+		for _, i := range instances {
+			ri = append(ri, getResolvedInstance(sd, i))
+		}
+
+		fmtr.printResolvedInstances(ri)
+
+	case "show":
+		if serviceInstance.Description == "" {
+			Fatal.Print("you must give a description if resolving an instance directly")
+			os.Exit(1)
+		}
+
+		instance, err := sd.ResolveInstance(serviceInstance)
+		if err != nil {
+			Fatal.Print("wasd error: ", err)
+			os.Exit(1)
+		}
+
+		fmtr.printResolvedInstance(instance)
+
+	default:
+		Fatal.Print("invalid command")
 		os.Exit(1)
 	}
+}
+
+func getFormatter() (out formatter, err error) {
+	switch *format {
+	case "default":
+		out = terminalFormatter{output: Info}
+	case "postgres_env":
+		out = postgresEnvVarFormatter{output: Info}
+	default:
+		err = errors.New("invalid format given")
+	}
+	return
 }
 
 func getResolvedInstance(sd gowasd.Client, i gowasd.Instance) (ri gowasd.InstanceResolution) {
@@ -74,156 +134,4 @@ func getResolvedInstance(sd gowasd.Client, i gowasd.Instance) (ri gowasd.Instanc
 		os.Exit(1)
 	}
 	return r
-}
-
-func runCommand(sd gowasd.Client, commands []string, instances []gowasd.Instance) {
-	if len(commands) == 0 {
-		Fatal.Print("no command specified")
-		os.Exit(1)
-	}
-	var subCommand bool = false
-	if len(commands) > 1 {
-		subCommand = true
-	}
-	switch commands[0] {
-	case "list":
-		var ri = make([]gowasd.InstanceResolution, len(instances))
-		for _, i := range instances {
-			ri = append(ri, getResolvedInstance(sd, i))
-		}
-		setVersions(ri)
-
-		if !versionExists(*version) {
-			Fatal.Print("version doesn't exist")
-			os.Exit(1)
-		}
-
-		if subCommand {
-			switch commands[1] {
-			case "versions":
-				printVersions()
-			case "targets":
-				printTargets(ri)
-			case "properties":
-				printProperties(ri, *version)
-			}
-		} else {
-			printResolvedInstance(ri)
-		}
-	}
-
-}
-
-func versionExists(version int) (exists bool) {
-	exists = false
-	for _, v := range availableVersions {
-		if v == version {
-			exists = true
-			return
-		}
-	}
-	return
-}
-
-func setVersions(instances []gowasd.InstanceResolution) {
-	for _, i := range instances {
-		for count, _ := range i.Properties {
-			availableVersions = append(availableVersions, count)
-		}
-	}
-}
-
-func printVersions() {
-	for _, c := range availableVersions {
-		Info.Println(c)
-	}
-}
-
-func printProperties(instances []gowasd.InstanceResolution, version int) {
-	for _, i := range instances {
-		var fields = make([][]string, len(i.Properties[version]))
-		var count = 0
-		for k, v := range i.Properties[version] {
-			fields[count] = []string{k, v}
-			count++
-		}
-		Info.Print(formatTable(fields))
-	}
-}
-
-func printTargets(instances []gowasd.InstanceResolution) {
-	for _, i := range instances {
-		var fields = make([][]string, len(i.Targets))
-		for count, t := range i.Targets {
-			fields[count] = []string{t.Host, strconv.Itoa(t.Port)}
-		}
-		Info.Print(formatTable(fields))
-	}
-}
-
-func printResolvedInstance(instances []gowasd.InstanceResolution) {
-
-	for _, i := range instances {
-		for _, e := range i.Targets {
-			port := strconv.Itoa(e.Port)
-			formatString := "%s    %-s"
-			Info.Print(fmt.Sprintf(formatString, e.Host, port))
-		}
-
-		for j, r := range i.Properties {
-			var fields = make([][]string, len(i.Properties[j]))
-
-			var count = 0
-			for k, v := range r {
-				fields[count] = []string{k, v}
-				count++
-			}
-			Info.Print(formatTable(fields))
-		}
-	}
-
-	return
-}
-
-func getNextArg(errMsg string) (val string) {
-	if len(args) >= (argNum + 1) {
-		val = args[argNum]
-		argNum += 1
-	} else if errMsg != "" {
-		Fatal.Print(errMsg)
-	}
-	return
-}
-
-func formatTable(fields [][]string) (out string) {
-	if len(fields) == 0 {
-		return
-	}
-	outBuf := new(bytes.Buffer)
-	numFields := len(fields[0])
-	maxIndex := numFields - 1
-	maxWidths := make([]int, numFields)
-	for _, f := range fields {
-		for i, c := range f {
-			if lenc := len(c); lenc > maxWidths[i] {
-				maxWidths[i] = lenc
-			}
-		}
-	}
-
-	for _, f := range fields {
-		for i := 0; i < numFields; i++ {
-			c := f[i]
-			outBuf.WriteString(c)
-			if i < maxIndex {
-				outBuf.Write(
-					bytes.Repeat([]byte(" "), maxWidths[i]-len(c)+2))
-			}
-		}
-		outBuf.WriteRune('\n')
-	}
-
-	out = outBuf.String()
-
-	return
 }

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const DefaultPropertyVersion = 1
@@ -14,8 +15,9 @@ const DefaultPropertyVersion = 1
 type VersionedProperties map[int]map[string]string
 
 type Client struct {
-	c    *dns.Client
-	Addr string
+	c              *dns.Client
+	Addr           string
+	RequestTimeout time.Duration
 }
 
 func New(c *dns.Client, addr string) (out Client, err error) {
@@ -25,7 +27,7 @@ func New(c *dns.Client, addr string) (out Client, err error) {
 			return out, err
 		}
 	}
-	return Client{c: c, Addr: addr}, nil
+	return Client{c: c, Addr: addr, RequestTimeout: time.Second}, nil
 }
 
 type Service struct {
@@ -109,15 +111,15 @@ func (self *Client) ServiceInstances(srv Service) (out []Instance, err error) {
 	}
 
 	var parts []string
-	out = make([]Instance, len(resp.Answer))
-	for i, ans := range resp.Answer {
+	out = make([]Instance, 0, len(resp.Answer))
+	for _, ans := range resp.Answer {
 		if ansPtr, ok := ans.(*dns.PTR); ok {
 			parts = parseDnsName(ansPtr.Ptr, 2)
-			out[i] = Instance{
+			out = append(out, Instance{
 				Description:  parts[0],
 				returnedName: ansPtr.Ptr,
 				Service:      srv,
-			}
+			})
 		}
 	}
 
@@ -126,15 +128,18 @@ func (self *Client) ServiceInstances(srv Service) (out []Instance, err error) {
 
 func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err error) {
 
-	responses := make(chan *dns.Msg)
-
 	record_types := [...]uint16{dns.TypeSRV, dns.TypeTXT}
+
+	responses := make(chan *dns.Msg, len(record_types))
+	errCh := make(chan error, len(record_types))
+
 	for _, record_type := range record_types {
 		go func(t uint16, n string) {
 			msg := new(dns.Msg)
 			msg.SetQuestion(n, t)
 			resp, _, err := self.c.Exchange(msg, self.Addr)
 			if err != nil {
+				errCh <- err
 				return
 			}
 			responses <- resp
@@ -146,19 +151,25 @@ func (self *Client) ResolveInstance(inst Instance) (out InstanceResolution, err 
 	out.Properties = make(VersionedProperties)
 
 	for i := 0; i < len(record_types); i++ {
-		r := <-responses
-		for _, anyRR := range r.Answer {
-			switch rr := anyRR.(type) {
-			case *dns.SRV:
-				// TODO: weight
-				out.Targets = append(out.Targets, Endpoint{
-					Host:     rr.Target,
-					Port:     int(rr.Port),
-					priority: int(rr.Priority),
-				})
-			case *dns.TXT:
-				parseTxtRecordForProperties(rr, &out)
+		select {
+		case r := <-responses:
+			for _, anyRR := range r.Answer {
+				switch rr := anyRR.(type) {
+				case *dns.SRV:
+					// TODO: weight
+					out.Targets = append(out.Targets, Endpoint{
+						Host:     rr.Target,
+						Port:     int(rr.Port),
+						priority: int(rr.Priority),
+					})
+				case *dns.TXT:
+					parseTxtRecordForProperties(rr, &out)
+				}
 			}
+		case err := <-errCh:
+			return InstanceResolution{}, err
+		case _ = <-time.After(self.RequestTimeout):
+			return InstanceResolution{}, errors.New("timeout")
 		}
 	}
 
