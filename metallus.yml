@@ -1,12 +1,12 @@
 packages:
   branch_codenames:
-    master: trusty-unstable
-    production: trusty-stable
+    master: bionic-unstable
+    production: bionic-stable
 
 jobs:
   wasd:
     builder: "golang"
-    base: "quay.io/madebymany/build-bases:trusty"
+    base: "quay.io/madebymany/build-bases:bionic"
     environment:
       GO_PACKAGE_DIR: wasd
     packages:
