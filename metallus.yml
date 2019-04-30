@@ -15,7 +15,6 @@ jobs:
     packages:
       - type: debian
         name: wasd
-        version: 0.0.3
         target: install
         repos:
           - mxm-public
