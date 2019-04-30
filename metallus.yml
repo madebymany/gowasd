@@ -16,6 +16,7 @@ jobs:
       - type: debian
         name: wasd
         target: install
+        version: 0.0.3
         repos:
           - mxm-public
         activates:
